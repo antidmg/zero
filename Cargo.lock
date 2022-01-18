@@ -3,10 +3,6 @@
 version = 3
 
 [[package]]
-<<<<<<< Updated upstream
-name = "zero2prod"
-version = "0.1.0"
-=======
 name = "async-trait"
 version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1082,4 +1078,3 @@ dependencies = [
  "serde",
  "tokio",
 ]
->>>>>>> Stashed changes
