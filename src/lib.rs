@@ -2,10 +2,10 @@ use std::borrow::Cow;
 
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::get, Router};
 
-pub async fn run() {
+pub async fn run(addr: &str) {
     // run it with hyper on localhost:3000
     let app = get_app();
-    axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
+    axum::Server::bind(&addr.to_string().parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -24,6 +24,5 @@ async fn health_check() -> impl IntoResponse {
 
 async fn greet(Path(key): Path<String>) -> impl IntoResponse {
     let name = key;
-    println!("Hello, {}", &name);
     (StatusCode::OK, Cow::from(format!("Hello, {name}")))
 }
