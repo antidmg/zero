@@ -1,6 +1,12 @@
 use std::borrow::Cow;
 
-use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::get, Router};
+use axum::{
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Router,
+};
 
 pub async fn run(addr: &str) {
     // run it with hyper on localhost:3000
@@ -16,6 +22,7 @@ pub fn get_app() -> axum::routing::Router {
         .route("/", get(|| async { "Hello, World!" }))
         .route("/:name", get(greet))
         .route("/health_check", get(health_check))
+        .route("/subscription", post(subscribe))
 }
 
 async fn health_check() -> impl IntoResponse {
@@ -25,4 +32,8 @@ async fn health_check() -> impl IntoResponse {
 async fn greet(Path(key): Path<String>) -> impl IntoResponse {
     let name = key;
     (StatusCode::OK, Cow::from(format!("Hello, {name}")))
+}
+
+async fn subscribe() -> impl IntoResponse {
+    StatusCode::OK
 }
