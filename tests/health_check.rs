@@ -1,7 +1,9 @@
 use axum::{body::Body, http::Request};
 use hyper::StatusCode;
+use sqlx::{Connection, PgConnection};
 use std::net::{SocketAddr, TcpListener};
-use zero2prod::get_app;
+use zero2prod::config::get_config;
+use zero2prod::startup::get_app;
 
 #[tokio::test]
 async fn health_check() {
@@ -29,12 +31,19 @@ async fn valid_form_data_subscribe_success() {
     let addr = listener.local_addr().unwrap();
     spawn_app(listener).await;
 
+    let config = get_config().expect("Failed to read configuration");
+    let conn_str = config.database.connection_string();
+    let mut connection = PgConnection::connect(&conn_str)
+        .await
+        .expect("Failed to connect to Postgres.");
+
     let client = hyper::Client::new();
 
-    let body = "name=tiny%20cat&email=tiny_cat@gmail.com";
+    let body = "name=tiny%20cat&email=tiny_cat%40gmail.com";
     let response = client
         .request(
             Request::post(format!("http://{addr}/subscriptions"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(Body::from(body))
                 .unwrap(),
         )
@@ -42,6 +51,14 @@ async fn valid_form_data_subscribe_success() {
         .unwrap();
 
     assert_eq!(StatusCode::OK, response.status());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "tiny_cat@gmail.com");
+    assert_eq!(saved.name, "tiny cat");
 }
 
 #[tokio::test]
