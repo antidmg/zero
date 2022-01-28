@@ -4,6 +4,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{Connection, PgConnection};
 use std::net::{SocketAddr, TcpListener};
 use std::time::Duration;
+use uuid::Uuid;
 use zero2prod::config::get_config;
 use zero2prod::startup::get_app;
 
@@ -33,12 +34,6 @@ async fn valid_form_data_subscribe_success() {
     let addr = listener.local_addr().unwrap();
     spawn_app(listener).await;
 
-    let config = get_config().expect("Failed to read configuration");
-    let conn_str = config.database.connection_string();
-    let mut connection = PgConnection::connect(&conn_str)
-        .await
-        .expect("Failed to connect to Postgres.");
-
     let client = hyper::Client::new();
 
     let body = "name=tiny%20cat&email=tiny_cat%40gmail.com";
@@ -54,6 +49,11 @@ async fn valid_form_data_subscribe_success() {
 
     assert_eq!(StatusCode::OK, response.status());
 
+    let config = get_config().expect("Failed to read configuration");
+    let conn_str = config.database.connection_string();
+    let mut connection = PgConnection::connect(&conn_str)
+        .await
+        .expect("Failed to connect to Postgres.");
     let saved = sqlx::query!("SELECT email, name FROM subscriptions")
         .fetch_one(&mut connection)
         .await
@@ -102,8 +102,10 @@ fn get_listener() -> std::io::Result<TcpListener> {
 }
 
 async fn spawn_app(listener: TcpListener) {
-    let config = get_config().expect("Failed to read configuration");
-    let conn_str = config.database.connection_string();
+    let mut config = get_config().expect("Failed to read configuration");
+    config.database.database_name = Uuid::new_v4().to_string();
+
+    let conn_str = config.database.connection_string_without_db();
     let pool = PgPoolOptions::new()
         .max_connections(1000)
         .max_lifetime(Duration::from_secs(30 * 60))
