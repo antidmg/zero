@@ -8,8 +8,6 @@ use sqlx::{Pool, Postgres};
 
 use crate::models;
 
-use tracing::info;
-
 #[allow(unused)]
 #[derive(Deserialize)]
 pub struct FormData {
