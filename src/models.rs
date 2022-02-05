@@ -1,5 +1,7 @@
 use axum::{extract::Form, response::IntoResponse};
-use chrono::Utc;
+
+use sqlx::types::time::OffsetDateTime;
+
 use hyper::StatusCode;
 use sqlx::{Pool, Postgres};
 use tracing::{error, info, info_span, Instrument};
@@ -32,7 +34,7 @@ pub async fn subscribe(pool: &Pool<Postgres>, form: Form<FormData>) -> impl Into
         Uuid::new_v4(),
         form.email,
         form.name,
-        Utc::now()
+        OffsetDateTime::now_utc(),
     )
     .execute(pool)
     .instrument(query_span)
