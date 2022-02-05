@@ -5,6 +5,7 @@ use axum::{AddExtensionLayer, Router};
 
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
+use tracing::info;
 
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 
@@ -21,9 +22,11 @@ pub async fn run(addr: &str) {
         .connect(conn_str.as_str())
         .await
         .expect("Failed to create DB pool.");
+    info!("Created DB connection pool: {conn_str}");
 
     let app = get_app(pool);
 
+    info!("Starting server on: {addr}");
     axum::Server::bind(&addr.to_string().parse().unwrap())
         .serve(app.into_make_service())
         .await

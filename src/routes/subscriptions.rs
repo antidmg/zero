@@ -2,11 +2,13 @@ use axum::{
     extract::{Extension, Form},
     response::IntoResponse,
 };
-use hyper::StatusCode;
+
 use serde::Deserialize;
 use sqlx::{Pool, Postgres};
 
 use crate::models;
+
+use tracing::info;
 
 #[allow(unused)]
 #[derive(Deserialize)]
@@ -20,5 +22,4 @@ pub async fn subscribe(
     Extension(pool): Extension<Pool<Postgres>>,
 ) -> impl IntoResponse {
     models::subscribe(&pool, form).await;
-    StatusCode::OK
 }
