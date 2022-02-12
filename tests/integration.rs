@@ -1,15 +1,32 @@
 use axum::{body::Body, http::Request};
 use hyper::StatusCode;
+use once_cell::sync::Lazy;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{Connection, PgConnection};
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::{SocketAddr, TcpListener};
 use std::time::Duration;
 use uuid::Uuid;
-use zero2prod::config::get_config;
+use zero2prod::config::{get_config, DatabaseSettings};
 use zero2prod::startup::get_app;
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
+
+// Ensure that the `tracing` setup is only done once using `once_cell`
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let default_filter_level = "info".to_string();
+    let subscriber_name = "test".to_string();
+
+    // To reduce noise in the test output, disable logs by default unless we pass this flag as true.
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
+        init_subscriber(subscriber);
+    }
+});
 
 #[tokio::test]
-async fn health_check() {
+async fn health_check_200_success() {
     let listener = get_listener().expect("Failed to create TCP listener");
     let addr = listener.local_addr().unwrap();
     spawn_app(listener).await;
@@ -29,10 +46,10 @@ async fn health_check() {
 }
 
 #[tokio::test]
-async fn valid_form_data_subscribe_success() {
+async fn valid_form_data_subscribe_200_success() {
     let listener = get_listener().expect("Faild to create TCP listener");
     let addr = listener.local_addr().unwrap();
-    spawn_app(listener).await;
+    let conn_str = spawn_app(listener).await;
 
     let client = hyper::Client::new();
 
@@ -49,8 +66,6 @@ async fn valid_form_data_subscribe_success() {
 
     assert_eq!(StatusCode::OK, response.status());
 
-    let config = get_config().expect("Failed to read configuration");
-    let conn_str = config.database.connection_string();
     let mut connection = PgConnection::connect(&conn_str)
         .await
         .expect("Failed to connect to Postgres.");
@@ -64,7 +79,7 @@ async fn valid_form_data_subscribe_success() {
 }
 
 #[tokio::test]
-async fn missing_form_data_bad_request() {
+async fn missing_form_data_400_bad_request() {
     let listener = get_listener().expect("Faild to create TCP listener");
     let addr = listener.local_addr().unwrap();
 
@@ -101,17 +116,15 @@ fn get_listener() -> std::io::Result<TcpListener> {
     Ok(listener)
 }
 
-async fn spawn_app(listener: TcpListener) {
-    let mut config = get_config().expect("Failed to read configuration");
-    config.database.database_name = Uuid::new_v4().to_string();
+async fn spawn_app(listener: TcpListener) -> String {
+    // This will be skipped after the first time.
+    Lazy::force(&TRACING);
 
-    let conn_str = config.database.connection_string_without_db();
-    let pool = PgPoolOptions::new()
-        .max_connections(1000)
-        .max_lifetime(Duration::from_secs(30 * 60))
-        .connect(conn_str.as_str())
+    let mut config = get_config().expect("Failed to read configuration.");
+    config.database.database_name = Uuid::new_v4().to_string();
+    let pool = configure_db(&config.database)
         .await
-        .expect("Failed to create DB pool.");
+        .expect("Failed to configure database.");
 
     tokio::spawn(async move {
         axum::Server::from_tcp(listener)
@@ -120,4 +133,28 @@ async fn spawn_app(listener: TcpListener) {
             .await
             .unwrap();
     });
+
+    config.database.connection_string()
+}
+
+async fn configure_db(config: &DatabaseSettings) -> Result<PgPool, sqlx::error::Error> {
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+    println!("config db name: {}", config.database_name);
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    let pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to create DB pool.");
+
+    // Ensure that tables are created for this test DB.
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to migrate database.");
+    Ok(pool)
 }

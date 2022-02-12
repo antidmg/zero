@@ -1,5 +1,5 @@
 pub enum Error {
-    DatabaseError(String),
+    DatabaseError(sqlx::Error),
     NotFound(String),
     /// Generic internal server error
     Internal(String),

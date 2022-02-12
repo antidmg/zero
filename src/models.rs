@@ -18,7 +18,7 @@ pub async fn subscribe(pool: &Pool<Postgres>, form: Form<FormData>) -> impl Into
         subscriber_name = %form.name
     );
 
-    // dont do this?
+    // TODO: dont do this within async functions - will result in incorrect spans.
     let _request_span_guard = request_span.enter();
 
     info!(

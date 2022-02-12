@@ -3,6 +3,7 @@ use std::time::Duration;
 use axum::routing::{get, post};
 use axum::{AddExtensionLayer, Router};
 
+use secrecy::ExposeSecret;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -14,15 +15,14 @@ use crate::{config::get_config, routes::health_check};
 
 pub async fn run(addr: &str) {
     let config = get_config().expect("Failed to read configuration");
-    let conn_str = config.database.connection_string();
 
     let pool = PgPoolOptions::new()
         .max_connections(1000)
         .max_lifetime(Duration::from_secs(30 * 60))
-        .connect(conn_str.as_str())
+        .connect(&config.database.connection_string())
         .await
         .expect("Failed to create DB pool.");
-    info!("Created DB connection pool: {conn_str}");
+    info!("Created DB connection pool");
 
     let app = get_app(pool);
 
