@@ -6,6 +6,7 @@ use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Regis
 
 /// Compose tracing subscriber layers.
 /// `Send` and `Sync` are used to pass the subscriber to `init_subscriber` later.
+/// The `Sink` parameter allows us to customize which log sinks to use.
 pub fn get_subscriber<Sink>(
     name: String,
     env_filter: String,

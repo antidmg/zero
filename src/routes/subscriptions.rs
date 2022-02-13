@@ -21,7 +21,6 @@ pub struct FormData {
     name = "Adding a new subscriber",
     skip(form, pool),
     fields(
-        request_id = %Uuid::new_v4(),
         subscriber_email = %form.email,
         subscriber_name = %form.name,
     )
@@ -57,7 +56,6 @@ pub async fn insert_subscriber(
     .execute(pool)
     .await
     .map_err(|e| {
-        println!("aaa error! {:?}", e);
         error!("Failed to execute query: {:?}", e);
     });
 

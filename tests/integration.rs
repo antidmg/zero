@@ -1,10 +1,9 @@
 use axum::{body::Body, http::Request};
 use hyper::StatusCode;
 use once_cell::sync::Lazy;
-use sqlx::postgres::PgPoolOptions;
+use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::{SocketAddr, TcpListener};
-use std::time::Duration;
 use uuid::Uuid;
 use zero2prod::config::{get_config, DatabaseSettings};
 use zero2prod::startup::get_app;
@@ -116,6 +115,7 @@ fn get_listener() -> std::io::Result<TcpListener> {
     Ok(listener)
 }
 
+/// Returns a connection string for the database.
 async fn spawn_app(listener: TcpListener) -> String {
     // This will be skipped after the first time.
     Lazy::force(&TRACING);
@@ -134,20 +134,24 @@ async fn spawn_app(listener: TcpListener) -> String {
             .unwrap();
     });
 
-    config.database.connection_string()
+    config
+        .database
+        .connection_string()
+        .expose_secret()
+        .to_string()
 }
 
 async fn configure_db(config: &DatabaseSettings) -> Result<PgPool, sqlx::error::Error> {
-    let mut connection = PgConnection::connect(&config.connection_string_without_db())
-        .await
-        .expect("Failed to connect to Postgres.");
-    println!("config db name: {}", config.database_name);
+    let mut connection =
+        PgConnection::connect(&config.connection_string_without_db().expose_secret())
+            .await
+            .expect("Failed to connect to Postgres.");
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
         .await
         .expect("Failed to create database.");
 
-    let pool = PgPool::connect(&config.connection_string())
+    let pool = PgPool::connect(&config.connection_string().expose_secret())
         .await
         .expect("Failed to create DB pool.");
 
